@@ -1,42 +1,57 @@
 import numpy as np
 
 class NeuralNet:
-  def __init__(self, layers, learning_rate=0.01, momentum=0.1, epochs=100, activation='sigmoid'):
-    # Hiperparams
+  def __init__(self, layers, learning_rate=0.01, momentum=0.1, epochs=100, activation='sigmoid', validation_split=0.2):
+    # Hyperparameters
     self.learning_rate = learning_rate
     self.momentum = momentum
     self.epochs = epochs
+    self.validation_split = validation_split
 
-    # Architecture of the network
-    self.L = len(layers)      # Num of layers
-    self.n = layers.copy()    # Array with the number of units in each layer
+    # Network Structure
+    self.L = len(layers)  # Number of layers
+    self.n = layers.copy() # Array with number of units in each layer
 
-    # Activation function configuration
+    # Activation Function Setup
     self.fact_name = activation
-    if self.fact_name == 'sigmoid':
-      self.fact = lambda x: 1 / (1 + np.exp(-x))
-      self.fact_derivative = lambda y: y * (1 - y)
-    # TODO: Add other activation functions like relu, tanh, linear
-    
-    # Initialization of all network variables according to the specification
+    self.fact, self.fact_derivative = self._get_activation_functions(activation)
+
+    # Initialize network variables as per assignment specification
     self._initialize_network_variables()
     
-    # Storage for error evolution (not used yet)
+    # Storage for loss evolution
     self.train_loss_history = []
     self.val_loss_history = []
 
+
+  def _get_activation_functions(self, name):
+    """Returns the activation function and its derivative."""
+    if name == 'sigmoid':
+      return (lambda x: 1 / (1 + np.exp(-x))), \
+             (lambda y: y * (1 - y))
+    elif name == 'relu':
+      # A small epsilon to prevent issues with division by zero in rare cases
+      return (lambda x: np.maximum(0, x)), \
+             (lambda y: np.where(y > 0, 1, 0))
+    elif name == 'tanh':
+      return (lambda x: np.tanh(x)), \
+             (lambda y: 1 - y**2)
+    elif name == 'linear':
+      return (lambda x: x), \
+             (lambda y: np.ones_like(y))
+    else:
+      raise ValueError(f"Activation function '{name}' is not supported.")
+
   def _initialize_network_variables(self):
+    """Initializes all required variables for the network structure and backpropagation."""
     # Activations (xi) and Fields (h)
     self.xi = [np.zeros((n_units, 1)) for n_units in self.n]
-    # h[0] is not used, a placeholder is added to maintain index consistency
     self.h = [np.zeros((1,1))] + [np.zeros((n_units, 1)) for n_units in self.n[1:]]
 
     # Weights (w) and Thresholds (theta) - Using Xavier/Glorot initialization
-    # w[0] and theta[0] are not used, placeholders are added
-    self.w = [np.zeros((1,1))]
-    self.theta = [np.zeros((1,1))] 
+    self.w = [np.zeros((1,1))] # Placeholder for w[0]
+    self.theta = [np.zeros((1,1))] # Placeholder for theta[0]
     for l in range(1, self.L):
-      # Weights are initialized with small random values to break symmetry
       limit = np.sqrt(6 / (self.n[l-1] + self.n[l]))
       self.w.append(np.random.uniform(-limit, limit, (self.n[l], self.n[l-1])))
       self.theta.append(np.random.uniform(-limit, limit, (self.n[l], 1)))
@@ -51,71 +66,98 @@ class NeuralNet:
     self.d_theta_prev = [np.zeros_like(theta_vec) for theta_vec in self.theta]
 
   def _feed_forward(self, x):
-    # The input x is set as the activation of the first layer (layer 0)
     self.xi[0] = x.reshape(-1, 1)
-    
-    # Propagation through hidden and output layers
     for l in range(1, self.L):
-      # Field: dot product of weights with activation from previous layer, minus the threshold
       self.h[l] = self.w[l] @ self.xi[l-1] - self.theta[l]
-      # Activation: apply the activation function to the field
       self.xi[l] = self.fact(self.h[l])
-      
-    # Returns the activation of the last layer (the prediction)
     return self.xi[self.L - 1]
 
   def _back_propagate(self, y):
-    # TODO: Implement the calculation of deltas for each layer, starting from the last.
-    pass
+    error = y - self.xi[self.L - 1]
+    self.delta[self.L - 1] = error * self.fact_derivative(self.xi[self.L - 1])
+
+    for l in range(self.L - 2, 0, -1):
+      self.delta[l] = (self.w[l+1].T @ self.delta[l+1]) * self.fact_derivative(self.xi[l])
   
   def _update_weights(self):
-    # TODO: Implement the update of w and theta using learning_rate and momentum.
-    pass
+    for l in range(1, self.L):
+      self.d_w[l] = self.learning_rate * self.delta[l] @ self.xi[l-1].T
+      self.d_theta[l] = -self.learning_rate * self.delta[l]
+
+      self.w[l] += self.d_w[l] + self.momentum * self.d_w_prev[l]
+      self.theta[l] += self.d_theta[l] + self.momentum * self.d_theta_prev[l]
+      
+      self.d_w_prev[l] = self.d_w[l]
+      self.d_theta_prev[l] = self.d_theta[l]
 
   def fit(self, X, y):
-    print("The training method 'fit' is not yet implemented.")
-    # TODO: Implement the main training loop over epochs,
-    # iterating over samples, calling feed_forward, back_propagate, and update_weights.
-    pass
+    if self.validation_split > 0 and self.validation_split < 1:
+      split_idx = int(len(X) * (1 - self.validation_split))
+      X_train, X_val = X[:split_idx], X[split_idx:]
+      y_train, y_val = y[:split_idx], y[split_idx:]
+    else:
+      X_train, y_train = X, y
+      X_val, y_val = None, None
+
+    for epoch in range(self.epochs):
+      indices = np.arange(X_train.shape[0])
+      np.random.shuffle(indices)
+      X_train_shuffled, y_train_shuffled = X_train[indices], y_train[indices]
+
+      epoch_train_error = 0
+      for x_sample, y_sample in zip(X_train_shuffled, y_train_shuffled):
+        prediction = self._feed_forward(x_sample)
+        self._back_propagate(y_sample)
+        self._update_weights()
+        epoch_train_error += (y_sample - prediction)**2
+      
+      self.train_loss_history.append(epoch_train_error.item() / len(X_train))
+
+      if X_val is not None:
+        y_val_pred = self.predict(X_val)
+        val_error = np.mean((y_val - y_val_pred)**2)
+        self.val_loss_history.append(val_error)
+        
+    return self
 
   def predict(self, X):
     if X.ndim == 1:
-      # If it is a single vector, reshape it to have 2 dimensions
       X = X.reshape(1, -1)
     
-    # Apply feed_forward to each input sample
     predictions = np.array([self._feed_forward(x) for x in X])
-    
-    # Flatten the result to return a simple prediction vector
     return predictions.flatten()
 
+  def loss_epochs(self):
+    return np.array(self.train_loss_history), np.array(self.val_loss_history)
 
-# --- Test code for the intermediate version ---
-layers = [4, 9, 5, 1]
-# Now the constructor requires hyperparameters, even if they are not yet used for training
-nn = NeuralNet(layers, learning_rate=0.05, epochs=100)
+  def cross_validate(self, X, y, k=5):
+    indices = np.arange(X.shape[0])
+    np.random.shuffle(indices)
+    fold_size = len(X) // k
+    scores = []
 
-print("Network architecture:")
-print("L (number of layers) = ", nn.L)
-print("n (units per layer) = ", nn.n)
-print("-" * 20)
+    original_val_split = self.validation_split
+    self.validation_split = 0 # Disable internal validation split during CV
 
-print("Dimensions of weights (w):")
-for i in range(1, nn.L):
-  print(f"  w[{i}]: {nn.w[i].shape}")
+    print(f"Starting {k}-fold Cross-Validation...")
+    for i in range(k):
+      start, end = i * fold_size, (i + 1) * fold_size
+      val_idx = indices[start:end]
+      train_idx = np.concatenate([indices[:start], indices[end:]])
 
-print("Dimensions of thresholds (theta):")
-for i in range(1, nn.L):
-  print(f"  theta[{i}]: {nn.theta[i].shape}")
-print("-" * 20)
+      X_train, y_train = X[train_idx], y[train_idx]
+      X_val, y_val = X[val_idx], y[val_idx]
 
-# Create a test input sample (4 features)
-x_test = np.random.rand(4)
-print("Test input (x_test):", x_test)
-
-# The network can now predict, although the weights are random
-prediction = nn.predict(x_test)
-print("Prediction (with random weights):", prediction)
-
-# Call fit to show that it is not yet implemented
-nn.fit(None, None)
+      self._initialize_network_variables()
+      self.fit(X_train, y_train)
+      
+      y_pred = self.predict(X_val)
+      fold_mse = np.mean((y_val - y_pred)**2)
+      scores.append(fold_mse)
+      print(f"  Fold {i+1}/{k} - MSE: {fold_mse:.6f}")
+    
+    self.validation_split = original_val_split
+    
+    results = {'mean_mse': np.mean(scores), 'std_mse': np.std(scores)}
+    print(f"CV finished. Mean MSE: {results['mean_mse']:.4f} (+/- {results['std_mse']:.4f})")
+    return results
