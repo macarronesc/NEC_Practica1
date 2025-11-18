@@ -1,5 +1,13 @@
-numpy
-pandas
-matplotlib
-seaborn
-scikit-learn
+# Core Data Science Libraries
+numpy>=1.21.0
+pandas>=1.3.0
+
+# Visualization
+matplotlib>=3.4.0
+seaborn>=0.11.0
+
+# Machine Learning - Scikit-learn
+scikit-learn>=1.0.0
+
+# Deep Learning - TensorFlow/Keras
+tensorflow>=2.8.0

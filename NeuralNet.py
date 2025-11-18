@@ -1,7 +1,27 @@
 import numpy as np
 
 class NeuralNet:
+  """
+  A from-scratch implementation of a multilayer perceptron with backpropagation.
+
+  This class adheres to the specifications provided in the NEC course assignment,
+  including variable naming conventions (L, n, w, xi, etc.) and required methods.
+  """
+  
   def __init__(self, layers, learning_rate=0.01, momentum=0.1, epochs=100, activation='sigmoid', validation_split=0.2):
+    """
+    Initializes the Neural Network.
+
+    Args:
+      layers (list): A list of integers representing the number of units in each layer.
+                     Example: [n_features, 10, 5, 1] for a network with 2 hidden layers.
+      learning_rate (float): The learning rate for weight updates.
+      momentum (float): The momentum term for weight updates.
+      epochs (int): The number of training epochs.
+      activation (str): The name of the activation function to use ('sigmoid', 'relu', 'tanh', 'linear').
+      validation_split (float): The fraction of training data to be used as a validation set.
+                                Set to 0 to disable validation.
+    """
     # Hyperparameters
     self.learning_rate = learning_rate
     self.momentum = momentum
@@ -56,16 +76,19 @@ class NeuralNet:
       self.w.append(np.random.uniform(-limit, limit, (self.n[l], self.n[l-1])))
       self.theta.append(np.random.uniform(-limit, limit, (self.n[l], 1)))
 
-    # Error propagation (delta)
+    # Propagation of errors (delta)
     self.delta = [np.zeros((1,1))] + [np.zeros((n_units, 1)) for n_units in self.n[1:]]
 
-    # Changes for weights (d_w) and thresholds (d_theta) for the momentum term
+    # Changes for weights (d_w) and thresholds (d_theta) for momentum
     self.d_w = [np.zeros_like(w_matrix) for w_matrix in self.w]
     self.d_theta = [np.zeros_like(theta_vec) for theta_vec in self.theta]
     self.d_w_prev = [np.zeros_like(w_matrix) for w_matrix in self.w]
     self.d_theta_prev = [np.zeros_like(theta_vec) for theta_vec in self.theta]
 
   def _feed_forward(self, x):
+    """
+    Performs a feed-forward pass for a single input sample.
+    """
     self.xi[0] = x.reshape(-1, 1)
     for l in range(1, self.L):
       self.h[l] = self.w[l] @ self.xi[l-1] - self.theta[l]
@@ -73,6 +96,9 @@ class NeuralNet:
     return self.xi[self.L - 1]
 
   def _back_propagate(self, y):
+    """
+    Performs the backpropagation step for a single sample.
+    """
     error = y - self.xi[self.L - 1]
     self.delta[self.L - 1] = error * self.fact_derivative(self.xi[self.L - 1])
 
@@ -80,6 +106,7 @@ class NeuralNet:
       self.delta[l] = (self.w[l+1].T @ self.delta[l+1]) * self.fact_derivative(self.xi[l])
   
   def _update_weights(self):
+    """Updates the weights and thresholds after a backpropagation step."""
     for l in range(1, self.L):
       self.d_w[l] = self.learning_rate * self.delta[l] @ self.xi[l-1].T
       self.d_theta[l] = -self.learning_rate * self.delta[l]
@@ -91,6 +118,9 @@ class NeuralNet:
       self.d_theta_prev[l] = self.d_theta[l]
 
   def fit(self, X, y):
+    """
+    Trains the network using the provided training data.
+    """
     if self.validation_split > 0 and self.validation_split < 1:
       split_idx = int(len(X) * (1 - self.validation_split))
       X_train, X_val = X[:split_idx], X[split_idx:]
@@ -121,6 +151,9 @@ class NeuralNet:
     return self
 
   def predict(self, X):
+    """
+    Predicts the output for a given set of input samples.
+    """
     if X.ndim == 1:
       X = X.reshape(1, -1)
     
@@ -128,9 +161,15 @@ class NeuralNet:
     return predictions.flatten()
 
   def loss_epochs(self):
+    """
+    Returns the training and validation loss history.
+    """
     return np.array(self.train_loss_history), np.array(self.val_loss_history)
 
   def cross_validate(self, X, y, k=5):
+    """
+    Performs k-fold cross-validation. (Optional Part 2)
+    """
     indices = np.arange(X.shape[0])
     np.random.shuffle(indices)
     fold_size = len(X) // k
