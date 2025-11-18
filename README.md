@@ -20,5 +20,5 @@ Download `train.csv` from [Kaggle House Prices Competition](https://www.kaggle.c
 Open `app.ipynb` in Jupyter and run all cells sequentially.
 
 ## Results
-- Best custom BP model: MAE ~$[YOUR_VALUE]
-- Gradient Boosting: MAE ~$[YOUR_VALUE] (best overall)
+- Best custom BP model: MAE ~$17,647.14
+- Gradient Boosting: MAE ~$14,953.26 (best overall)
